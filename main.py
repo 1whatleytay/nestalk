@@ -40,6 +40,7 @@ async def run_client():
         frame = await nes.take_action(controller, 1)
 
         image = pygame.image.frombuffer(frame.frame, (256, 240), 'RGBA')
+        image = pygame.transform.scale(image, (256 * 2, 240 * 2))
         display.blit(image, (0, 0))
 
         pygame.display.update()
