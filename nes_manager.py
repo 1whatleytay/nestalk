@@ -82,7 +82,7 @@ class NesManager:
             if len(response) == 0:
                 raise Exception("Connection closed by server.")
 
-            print(f"Got bytes {len(response)} back from server.")
+            # print(f"Got bytes {len(response)} back from server.")
 
             self.delimiter.push(response)
 

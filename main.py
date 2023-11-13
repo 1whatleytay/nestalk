@@ -37,7 +37,12 @@ async def run_client():
         controller.left = pressed[K_LEFT]
         controller.right = pressed[K_RIGHT]
 
-        frame = await nes.take_action(controller, 1)
+        memory_requests = {"mario_x": 0x86, "page": 0x6d, "coins": 0x075e,
+                           "digits_1": 0x07d8, "digits_2": 0x07d9, "digits_3": 0x07da,
+                           "digits_4": 0x07db, "digits_5": 0x07dc, "digits_6": 0x07dd}
+
+        frame = await nes.take_action(controller, 1,
+                                      memory_requests=memory_requests)
 
         image = pygame.image.frombuffer(frame.frame, (256, 240), 'RGBA')
         image = pygame.transform.scale(image, (256 * 2, 240 * 2))

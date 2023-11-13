@@ -11,14 +11,14 @@ class Delimiter:
     def push(self, data: bytes):
         self.buffer.extend(data)
 
-    def pop_bytes(self, count: int) -> bytearray:
+    def pop_bytes(self, count: int) -> bytes:
         result = self.buffer[:count]
 
         self.buffer = self.buffer[count:]
 
-        return result
+        return bytes(result)
 
-    def pop(self) -> Optional[bytearray]:
+    def pop(self) -> Optional[bytes]:
         if self.size is None:
             if len(self.buffer) >= 8:
                 result = self.pop_bytes(8)
