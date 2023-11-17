@@ -1,16 +1,14 @@
 import asyncio
 import pygame
-from pygame import K_UP, K_DOWN, K_LEFT, K_RIGHT, K_x, K_z, K_l, K_KP_ENTER
+from pygame import K_UP, K_DOWN, K_LEFT, K_RIGHT, K_x, K_z, K_l, K_RETURN
 
 from messages_pb2 import ControllerInput
-from nes_manager import create_nes_manager
+from nes import create_nes
 
 
 async def run_client():
     # Manager will probably leak the socket here.
-    manager = await create_nes_manager(("127.0.0.1", 9013))
-
-    nes = await manager.create_emulator()
+    nes = await create_nes(("127.0.0.1", 9013))
 
     pygame.init()
 
@@ -18,10 +16,18 @@ async def run_client():
 
     pygame.display.set_caption("EmServer Streaming")
 
+    state = None
     running = True
 
     while running:
         for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_p:
+                    state = await nes.get_state()
+
+                if event.key == pygame.K_o and state is not None:
+                    await nes.set_state(state)
+
             if event.type == pygame.QUIT:
                 running = False
 
@@ -30,7 +36,7 @@ async def run_client():
         controller = ControllerInput()
         controller.a = pressed[K_x]
         controller.b = pressed[K_z]
-        controller.select = pressed[K_KP_ENTER]
+        controller.select = pressed[K_RETURN]
         controller.start = pressed[K_l]
         controller.up = pressed[K_UP]
         controller.down = pressed[K_DOWN]
