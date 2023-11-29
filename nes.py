@@ -1,14 +1,15 @@
 import socket
 import asyncio
 from delimiter import Delimiter
-from messages_pb2 import (Ping, Response, Request, FrameContents, GetFrame,
-                          GetState, SetState, TakeAction, ControllerInput)
+from messages_pb2 import (Ping, InitializeRequest, EmulatorRequest, StreamRequest, GetStream, InitializeType, FrameContents, GetFrame,
+                          ActionResult, GetState, SetState, TakeAction, ControllerInput, Pong, StreamDetails)
 from google.protobuf.message import Message
-from typing import Optional
+from typing import Optional, TypeVar
+
+T = TypeVar("T")
 
 
-# noinspection PyUnresolvedReferences
-class Nes:
+class ConnectionBase:
     sock: socket.socket
     delimiter: Delimiter
 
@@ -37,25 +38,33 @@ class Nes:
 
         return packet
 
-    async def wait_for_response(self) -> Response:
+    async def wait_for_response(self, response: T) -> T:
         packet = await self.wait_for_raw_packet()
 
-        response = Response()
         response.ParseFromString(packet)
 
         return response
 
-    async def get_state(self) -> bytes:
-        await self.send_packet(Request(get_state=GetState()))
-        response = await self.wait_for_response()
+    def __init__(self, sock: socket.socket, delimiter: Delimiter):
+        self.sock = sock
+        self.delimiter = delimiter
 
-        return response.state_details.state
+
+# noinspection PyUnresolvedReferences
+class Nes(ConnectionBase):
+    stream_id: int
+
+    async def get_state(self) -> bytes:
+        await self.send_packet(EmulatorRequest(get_state=GetState()))
+        response = await self.wait_for_response(StateDetails())
+
+        return response.state
 
     async def set_state(self, data: bytes):
-        await self.send_packet(Request(set_state=SetState(state=data)))
-        response = await self.wait_for_response()
+        await self.send_packet(EmulatorRequest(set_state=SetState(state=data)))
+        response = await self.wait_for_response(SetStateResult())
 
-        if response.set_state_result.parse_error != '':
+        if response.parse_error != '':
             raise Exception(f'Failed to set stated with error {response.set_state_result.parse_error}')
 
     # Memory Requests gets details like marios position.
@@ -64,48 +73,82 @@ class Nes:
         if memory_requests is None:
             memory_requests = {}
 
-        await self.send_packet(Request(get_frame=GetFrame(
+        await self.send_packet(EmulatorRequest(get_frame=GetFrame(
             memory_requests=memory_requests
         )))
 
-        response = await self.wait_for_response()
+        response = await self.wait_for_response(FrameDetails())
 
-        return response.frame_details.frame
+        return response.frame
 
     async def take_action(self, controller: ControllerInput, skip_frames: int,
                           memory_requests: Optional[dict[str, int]] = None) -> FrameContents:
         if memory_requests is None:
             memory_requests = {}
 
-        await self.send_packet(Request(take_action=TakeAction(
+        await self.send_packet(EmulatorRequest(take_action=TakeAction(
             skip_frames=skip_frames,
             input=controller,
-            memory_requests=memory_requests
+            memory_requests=memory_requests,
+            stream_id=self.stream_id
         )))
 
-        response = await self.wait_for_response()
+        response = await self.wait_for_response(ActionResult())
 
-        if response.action_result.error.message != '':
+        if response.error.message != '':
             raise Exception(f"Error occurred during action: {response.action_result.error.message}")
 
-        return response.action_result.frame
+        return response.frame
+
+    def __init__(self, sock: socket.socket, stream_id: Optional[int]):
+        super(Nes, self).__init__(sock, Delimiter())
+
+        self.stream_id = stream_id
+
+
+class StreamNes(ConnectionBase):
+    async def get_frame(self, stream_id: int) -> StreamDetails:
+        await self.send_packet(StreamRequest(
+            get_stream=GetStream(stream_id=stream_id)
+        ))
+
+        response = await self.wait_for_response(StreamDetails())
+
+        return response
 
     def __init__(self, sock: socket.socket):
-        self.sock = sock
-        self.delimiter = Delimiter()
+        super(StreamNes, self).__init__(sock, Delimiter())
 
 
-async def create_nes(address: (str, int)) -> Nes:
+async def check_pong(client: ConnectionBase):
+    await client.send_packet(InitializeRequest(ping=Ping(content="NesManager Client")))
+    response = await client.wait_for_response(Pong())
+
+    if response.content != "NesManager Client":
+        raise Exception("Server response was not valid.")
+
+
+async def create_nes(address: tuple[str, int], stream_id: Optional[int] = None) -> Nes:
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     client.connect(address)
 
-    nes = Nes(client)
+    nes = Nes(client, stream_id)
 
-    await nes.send_packet(Request(ping=Ping(content="NesManager Client")))
-    response = await nes.wait_for_response()
+    await check_pong(nes)
+    await nes.send_packet(InitializeRequest(initialize=InitializeType.CREATE_EMULATOR))
 
-    if response.pong.content != "NesManager Client":
-        raise Exception("Server response was not valid.")
+    return nes
+
+
+async def create_stream_nes(address: tuple[str, int]) -> StreamNes:
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    client.connect(address)
+
+    nes = StreamNes(client)
+
+    await check_pong(nes)
+    await nes.send_packet(InitializeRequest(initialize=InitializeType.OPEN_STREAM))
 
     return nes

@@ -8,13 +8,13 @@ from nes import create_nes
 
 async def run_client():
     # Manager will probably leak the socket here.
-    nes = await create_nes(("127.0.0.1", 9013))
+    nes = await create_nes(("127.0.0.1", 9013), 1)
 
     pygame.init()
 
     display = pygame.display.set_mode((256 * 2, 240 * 2))
 
-    pygame.display.set_caption("EmServer Streaming")
+    pygame.display.set_caption("EmServer Server")
 
     state = None
     running = True

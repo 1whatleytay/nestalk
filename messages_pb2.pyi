@@ -10,8 +10,15 @@ class Renderer(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     RENDERER_SOFTWARE: _ClassVar[Renderer]
     RENDERER_HARDWARE: _ClassVar[Renderer]
+
+class InitializeType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    CREATE_EMULATOR: _ClassVar[InitializeType]
+    OPEN_STREAM: _ClassVar[InitializeType]
 RENDERER_SOFTWARE: Renderer
 RENDERER_HARDWARE: Renderer
+CREATE_EMULATOR: InitializeType
+OPEN_STREAM: InitializeType
 
 class Ping(_message.Message):
     __slots__ = ("content",)
@@ -82,7 +89,7 @@ class ControllerInput(_message.Message):
     def __init__(self, a: bool = ..., b: bool = ..., select: bool = ..., start: bool = ..., up: bool = ..., down: bool = ..., left: bool = ..., right: bool = ...) -> None: ...
 
 class TakeAction(_message.Message):
-    __slots__ = ("skip_frames", "input", "memory_requests")
+    __slots__ = ("skip_frames", "input", "memory_requests", "stream_id")
     class MemoryRequestsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -93,10 +100,12 @@ class TakeAction(_message.Message):
     SKIP_FRAMES_FIELD_NUMBER: _ClassVar[int]
     INPUT_FIELD_NUMBER: _ClassVar[int]
     MEMORY_REQUESTS_FIELD_NUMBER: _ClassVar[int]
+    STREAM_ID_FIELD_NUMBER: _ClassVar[int]
     skip_frames: int
     input: ControllerInput
     memory_requests: _containers.ScalarMap[str, int]
-    def __init__(self, skip_frames: _Optional[int] = ..., input: _Optional[_Union[ControllerInput, _Mapping]] = ..., memory_requests: _Optional[_Mapping[str, int]] = ...) -> None: ...
+    stream_id: int
+    def __init__(self, skip_frames: _Optional[int] = ..., input: _Optional[_Union[ControllerInput, _Mapping]] = ..., memory_requests: _Optional[_Mapping[str, int]] = ..., stream_id: _Optional[int] = ...) -> None: ...
 
 class ActionError(_message.Message):
     __slots__ = ("message",)
@@ -134,7 +143,46 @@ class SetStateResult(_message.Message):
     parse_error: str
     def __init__(self, parse_error: _Optional[str] = ...) -> None: ...
 
-class Request(_message.Message):
+class GetStream(_message.Message):
+    __slots__ = ("stream_id",)
+    STREAM_ID_FIELD_NUMBER: _ClassVar[int]
+    stream_id: int
+    def __init__(self, stream_id: _Optional[int] = ...) -> None: ...
+
+class StreamDetails(_message.Message):
+    __slots__ = ("frame", "input", "memory_values")
+    class MemoryValuesEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: int
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[int] = ...) -> None: ...
+    FRAME_FIELD_NUMBER: _ClassVar[int]
+    INPUT_FIELD_NUMBER: _ClassVar[int]
+    MEMORY_VALUES_FIELD_NUMBER: _ClassVar[int]
+    frame: bytes
+    input: ControllerInput
+    memory_values: _containers.ScalarMap[str, int]
+    def __init__(self, frame: _Optional[bytes] = ..., input: _Optional[_Union[ControllerInput, _Mapping]] = ..., memory_values: _Optional[_Mapping[str, int]] = ...) -> None: ...
+
+class InitializeRequest(_message.Message):
+    __slots__ = ("ping", "initialize")
+    PING_FIELD_NUMBER: _ClassVar[int]
+    INITIALIZE_FIELD_NUMBER: _ClassVar[int]
+    ping: Ping
+    initialize: InitializeType
+    def __init__(self, ping: _Optional[_Union[Ping, _Mapping]] = ..., initialize: _Optional[_Union[InitializeType, str]] = ...) -> None: ...
+
+class StreamRequest(_message.Message):
+    __slots__ = ("ping", "get_stream")
+    PING_FIELD_NUMBER: _ClassVar[int]
+    GET_STREAM_FIELD_NUMBER: _ClassVar[int]
+    ping: Ping
+    get_stream: GetStream
+    def __init__(self, ping: _Optional[_Union[Ping, _Mapping]] = ..., get_stream: _Optional[_Union[GetStream, _Mapping]] = ...) -> None: ...
+
+class EmulatorRequest(_message.Message):
     __slots__ = ("ping", "get_frame", "take_action", "get_state", "set_state")
     PING_FIELD_NUMBER: _ClassVar[int]
     GET_FRAME_FIELD_NUMBER: _ClassVar[int]
@@ -147,17 +195,3 @@ class Request(_message.Message):
     get_state: GetState
     set_state: SetState
     def __init__(self, ping: _Optional[_Union[Ping, _Mapping]] = ..., get_frame: _Optional[_Union[GetFrame, _Mapping]] = ..., take_action: _Optional[_Union[TakeAction, _Mapping]] = ..., get_state: _Optional[_Union[GetState, _Mapping]] = ..., set_state: _Optional[_Union[SetState, _Mapping]] = ...) -> None: ...
-
-class Response(_message.Message):
-    __slots__ = ("pong", "frame_details", "action_result", "state_details", "set_state_result")
-    PONG_FIELD_NUMBER: _ClassVar[int]
-    FRAME_DETAILS_FIELD_NUMBER: _ClassVar[int]
-    ACTION_RESULT_FIELD_NUMBER: _ClassVar[int]
-    STATE_DETAILS_FIELD_NUMBER: _ClassVar[int]
-    SET_STATE_RESULT_FIELD_NUMBER: _ClassVar[int]
-    pong: Pong
-    frame_details: FrameDetails
-    action_result: ActionResult
-    state_details: StateDetails
-    set_state_result: SetStateResult
-    def __init__(self, pong: _Optional[_Union[Pong, _Mapping]] = ..., frame_details: _Optional[_Union[FrameDetails, _Mapping]] = ..., action_result: _Optional[_Union[ActionResult, _Mapping]] = ..., state_details: _Optional[_Union[StateDetails, _Mapping]] = ..., set_state_result: _Optional[_Union[SetStateResult, _Mapping]] = ...) -> None: ...
